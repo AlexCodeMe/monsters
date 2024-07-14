@@ -11,6 +11,7 @@ from dialog import DialogTree
 from support import *
 
 class Game:
+    # general
     def __init__(self):
         pygame.init()
         self.display_surface = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -21,6 +22,15 @@ class Game:
         self.all_sprites = AllSprites()
         self.collision_sprites = pygame.sprite.Group()
         self.character_sprites = pygame.sprite.Group()
+        self.transition_sprites = pygame.sprite.Group()
+        
+        # transition / tint
+        self.transition_target = None
+        self.tint_surf = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+        self.tint_mode = 'untint'
+        self.tint_progress = 0
+        self.tint_direction = -1
+        self.tint_speed =  600
         
         self.import_assets()
         self.setup(self.tmx_maps['world'], 'house')
@@ -69,7 +79,7 @@ class Game:
                
         # transition objects
         for obj in tmx_map.get_layer_by_name('Transition'):
-            pass
+            TransitionSprite((obj.x, obj.y), (obj.width, obj.height), (obj.properties['target'], obj.properties['pos']), self.transition_sprites)
          
         # collision objects
         for obj in tmx_map.get_layer_by_name('Collisions'):
@@ -103,6 +113,7 @@ class Game:
                     radius = obj.properties['radius']
                 )
         
+    # dialog system
     def input(self):
         if not self.dialog_tree:
             keys = pygame.key.get_just_pressed()
@@ -122,25 +133,45 @@ class Game:
         self.dialog_tree = None
         self.player.unblock()
             
+    # transition system
+    def transition_check(self):
+        sprites = [sprite for sprite in self.transition_sprites if sprite.rect.colliderect(self.player.hitbox)]
+        if sprites:
+            self.player.block()
+            self.transition_target = sprites[0].target
+            self.tint_mode = 'tint'
+            
+    def tint_screen(self, dt):
+        if self.tint_mode == 'tint':
+            self.tint_progress += self.tint_speed * dt
+            
+        self.tint_surf.set_alpha(self.tint_progress)
+        self.display_surface.blit(self.tint_surf, (0,0))
+            
     def run(self):
         while True: 
             dt = self.clock.tick() / 1000
+            self.display_surface.fill('black')
+            
             # event loop
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     exit()
-                    
-            # draw
+                
+            # update
             self.input()
+            self.transition_check()
             self.all_sprites.update(dt)
-            self.display_surface.fill('black')
+            
+            # draw
             self.all_sprites.draw(self.player)
             
             # overlays
             if self.dialog_tree:
                 self.dialog_tree.update()
                 
+            self.tint_screen(dt)
             pygame.display.update()
             
 if __name__ == '__main__':
